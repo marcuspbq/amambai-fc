@@ -1,0 +1,14 @@
+{
+  "name": "Amambaí F.C. — Bolão Copa",
+  "short_name": "Amambaí FC",
+  "description": "Bolão da Copa do Mundo — Praça Amambaí Futebol Clube",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e1a10",
+  "theme_color": "#0e1a10",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/escudo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ],
+  "categories": ["sports", "games", "entertainment"]
+}
