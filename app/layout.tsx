@@ -1,31 +1,10 @@
 import type { Metadata, Viewport } from 'next'
-import { Bebas_Neue, Barlow, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
-
-const bebasNeue = Bebas_Neue({
-  weight: '400',
-  subsets: ['latin'],
-  variable: '--font-bebas',
-})
-
-const barlow = Barlow({
-  weight: ['300', '400', '500', '600', '700'],
-  subsets: ['latin'],
-  variable: '--font-barlow',
-})
-
-const barlowCondensed = Barlow_Condensed({
-  weight: ['400', '600', '700', '800'],
-  subsets: ['latin'],
-  variable: '--font-condensed',
-})
 
 export const metadata: Metadata = {
   title: 'Amambaí F.C. — Bolão Copa do Mundo',
-  description:
-    'O bolão do Praça Amambaí Futebol Clube. 3 competições: Campeão Geral, Rei dos Artilheiros e Trader da Copa.',
+  description: 'O bolão do Praça Amambaí Futebol Clube. Meier, 1993.',
   manifest: '/manifest.json',
-  icons: { icon: '/escudo.svg', apple: '/escudo.svg' },
   authors: [{ name: 'Marcus Paulo', url: 'https://github.com/marcuspbq' }],
 }
 
@@ -36,18 +15,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body
-        className={`${bebasNeue.variable} ${barlow.variable} ${barlowCondensed.variable}`}
-      >
-        {children}
-      </body>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+      </head>
+      <body>{children}</body>
     </html>
   )
 }
