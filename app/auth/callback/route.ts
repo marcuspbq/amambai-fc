@@ -1,11 +1,12 @@
-// ─────────────────────────────────────────────────
-// Amambaí F.C. — Auth Callback
-// O Supabase redireciona aqui após o clique no Magic Link
-// ─────────────────────────────────────────────────
-
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+
+type CookieToSet = {
+  name: string
+  value: string
+  options?: Record<string, unknown>
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -20,9 +21,9 @@ export async function GET(request: NextRequest) {
       {
         cookies: {
           getAll() { return cookieStore.getAll() },
-          setAll(cookiesToSet) {
+          setAll(cookiesToSet: CookieToSet[]) {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options as Record<string, unknown>)
             )
           },
         },
@@ -32,22 +33,19 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error && data.user) {
-      // Cria perfil do usuário se não existir ainda
       await supabase.from('users').upsert({
         id: data.user.id,
         email: data.user.email!,
-        nickname: data.user.email!.split('@')[0], // nickname padrão = parte antes do @
+        nickname: data.user.email!.split('@')[0],
         avatar_emoji: '⭐',
       }, { onConflict: 'id' })
 
-      // Redireciona para onboarding se for primeiro acesso
       const { data: profile } = await supabase
         .from('users')
         .select('nickname')
         .eq('id', data.user.id)
         .single()
 
-      // Se nickname ainda é o email (nunca customizou), vai para onboarding
       const isFirstAccess = profile?.nickname === data.user.email!.split('@')[0]
       const redirectTo = isFirstAccess ? '/onboarding' : next
 
@@ -55,6 +53,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Erro — redireciona para login com mensagem
   return NextResponse.redirect(new URL('/login?error=auth', request.url))
 }
