@@ -6,11 +6,10 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    // Redireciona para página que vai trocar o code por sessão no cliente
     return NextResponse.redirect(
-      `${origin}/auth/confirm?code=${code}&next=${next}`
+      `${origin}/auth/confirm?code=${code}&next=${encodeURIComponent(next)}`
     )
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`)
+  return NextResponse.redirect(`${origin}/login?error=nocode`)
 }
