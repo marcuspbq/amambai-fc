@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
-function Escudo({ size = 72 }: { size?: number }) {
+function Escudo({ size = 80 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
       <circle cx="50" cy="50" r="48" fill="white" stroke="#1a7a2e" strokeWidth="3"/>
@@ -38,39 +38,80 @@ function Escudo({ size = 72 }: { size?: number }) {
   )
 }
 
-type Step = 'email' | 'sent'
+type Step = 'email' | 'otp' | 'sent'
 
 export default function LoginPage() {
   const supabase = createClient()
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
+  const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleLogin() {
+  async function handleSendOTP() {
     if (!email || !email.includes('@')) {
       setError('Digite um email válido')
       return
     }
-
     setLoading(true)
     setError('')
 
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: 'https://amambai-fc.netlify.app/auth/callback',
-      },
+      options: { shouldCreateUser: true },
     })
 
     setLoading(false)
 
     if (authError) {
-      setError('Erro ao enviar o link. Tente novamente.')
+      setError('Erro ao enviar o código. Tente novamente.')
       return
     }
 
-    setStep('sent')
+    setStep('otp')
+  }
+
+  async function handleVerifyOTP() {
+    if (!otp || otp.length < 6) {
+      setError('Digite o código completo')
+      return
+    }
+    setLoading(true)
+    setError('')
+
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email',
+    })
+
+    if (verifyError || !data.user) {
+      setLoading(false)
+      setError('Código inválido ou expirado. Tente novamente.')
+      return
+    }
+
+    // Cria perfil se não existir
+    const emailPrefix = email.split('@')[0]
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('nickname')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!existingUser) {
+      await supabase.from('users').insert({
+        id: data.user.id,
+        email: data.user.email!,
+        nickname: emailPrefix,
+        avatar_emoji: '⭐',
+      })
+      window.location.href = '/onboarding'
+      return
+    }
+
+    const isFirstAccess = existingUser.nickname === emailPrefix
+    window.location.href = isFirstAccess ? '/onboarding' : '/'
   }
 
   return (
@@ -84,199 +125,83 @@ export default function LoginPage() {
       padding: '32px 24px',
     }}>
 
-      {/* HEADER */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
           <Escudo size={80} />
         </div>
-        <div style={{
-          fontFamily: 'Bebas Neue,sans-serif',
-          fontSize: 36,
-          letterSpacing: 3,
-          color: 'var(--white)',
-          lineHeight: 1,
-        }}>
+        <div style={{ fontFamily:'Bebas Neue,sans-serif', fontSize:36, letterSpacing:3, color:'var(--white)', lineHeight:1 }}>
           AMAMBAÍ F.C.
         </div>
-        <div style={{
-          fontFamily: 'Barlow Condensed,sans-serif',
-          fontSize: 13,
-          letterSpacing: 2,
-          color: 'var(--gold-light)',
-          marginTop: 6,
-          textTransform: 'uppercase',
-        }}>
+        <div style={{ fontFamily:'Barlow Condensed,sans-serif', fontSize:13, letterSpacing:2, color:'var(--gold-light)', marginTop:6, textTransform:'uppercase' }}>
           Bolão Copa do Mundo 2026
         </div>
       </div>
 
-      {/* CARD */}
-      <div style={{
-        width: '100%',
-        maxWidth: 400,
-        background: 'var(--surface)',
-        border: '1px solid rgba(200,146,42,0.2)',
-        borderRadius: 20,
-        padding: 28,
-      }}>
+      <div style={{ width:'100%', maxWidth:400, background:'var(--surface)', border:'1px solid rgba(200,146,42,0.2)', borderRadius:20, padding:28 }}>
 
+        {/* STEP 1: EMAIL */}
         {step === 'email' && (
           <>
-            <div style={{
-              fontFamily: 'Bebas Neue,sans-serif',
-              fontSize: 24,
-              letterSpacing: 2,
-              marginBottom: 6,
-            }}>
-              Entrar no Bolão
+            <div style={{ fontFamily:'Bebas Neue,sans-serif', fontSize:24, letterSpacing:2, marginBottom:6 }}>Entrar no Bolão</div>
+            <div style={{ fontSize:14, color:'var(--text-muted)', marginBottom:24, lineHeight:1.5 }}>
+              Digite seu email e vamos te mandar um código de 6 dígitos.
             </div>
-            <div style={{
-              fontSize: 14,
-              color: 'var(--text-muted)',
-              marginBottom: 24,
-              lineHeight: 1.5,
-            }}>
-              Digite seu email e vamos te mandar um link mágico. Sem senha para lembrar!
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{
-                fontFamily: 'Barlow Condensed,sans-serif',
-                fontSize: 11,
-                letterSpacing: 2,
-                textTransform: 'uppercase',
-                color: 'var(--text-muted)',
-                display: 'block',
-                marginBottom: 8,
-              }}>
-                Seu Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => { setEmail(e.target.value); setError('') }}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                placeholder="seu@email.com"
-                style={{
-                  width: '100%',
-                  background: 'var(--dark)',
-                  border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 12,
-                  padding: '14px 16px',
-                  fontSize: 16,
-                  color: 'var(--white)',
-                  outline: 'none',
-                  fontFamily: 'Barlow,sans-serif',
-                  transition: 'border-color 0.2s',
-                }}
-              />
-              {error && (
-                <div style={{ fontSize: 13, color: '#e74c3c', marginTop: 8 }}>{error}</div>
-              )}
-            </div>
-
-            <button
-              onClick={handleLogin}
-              disabled={loading}
-              style={{
-                width: '100%',
-                background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)',
-                border: 'none',
-                borderRadius: 12,
-                padding: '14px',
-                fontFamily: 'Barlow Condensed,sans-serif',
-                fontWeight: 700,
-                fontSize: 16,
-                letterSpacing: 2,
-                textTransform: 'uppercase',
-                color: 'var(--white)',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              {loading ? 'Enviando...' : 'Receber Link de Acesso ⚡'}
+            <label style={{ fontFamily:'Barlow Condensed,sans-serif', fontSize:11, letterSpacing:2, textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:8 }}>
+              Seu Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleSendOTP()}
+              placeholder="seu@email.com"
+              style={{ width:'100%', background:'var(--dark)', border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'14px 16px', fontSize:16, color:'var(--white)', outline:'none', fontFamily:'Barlow,sans-serif', marginBottom:8 }}
+            />
+            {error && <div style={{ fontSize:13, color:'#e74c3c', marginBottom:12 }}>{error}</div>}
+            <button onClick={handleSendOTP} disabled={loading}
+              style={{ width:'100%', background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)', border:'none', borderRadius:12, padding:'14px', fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16, letterSpacing:2, textTransform:'uppercase', color:'var(--white)', cursor: loading ? 'not-allowed' : 'pointer', marginTop:8 }}>
+              {loading ? 'Enviando...' : 'Receber Código ⚡'}
             </button>
-
-            <div style={{
-              marginTop: 20,
-              padding: '12px 14px',
-              background: 'rgba(200,146,42,0.08)',
-              border: '1px solid rgba(200,146,42,0.2)',
-              borderRadius: 10,
-              fontSize: 13,
-              color: 'var(--text-muted)',
-              lineHeight: 1.5,
-            }}>
-              🔒 Sem senha — você vai receber um link no seu email que te loga automaticamente. Seguro e simples.
-            </div>
           </>
         )}
 
-        {step === 'sent' && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>📬</div>
-            <div style={{
-              fontFamily: 'Bebas Neue,sans-serif',
-              fontSize: 28,
-              letterSpacing: 2,
-              color: 'var(--gold-light)',
-              marginBottom: 8,
-            }}>
-              Link Enviado!
+        {/* STEP 2: OTP */}
+        {step === 'otp' && (
+          <>
+            <div style={{ fontFamily:'Bebas Neue,sans-serif', fontSize:24, letterSpacing:2, marginBottom:6 }}>Digite o Código</div>
+            <div style={{ fontSize:14, color:'var(--text-muted)', marginBottom:24, lineHeight:1.5 }}>
+              Mandamos um código de 6 dígitos para <strong style={{ color:'var(--white)' }}>{email}</strong>
             </div>
-            <div style={{
-              fontSize: 15,
-              color: 'var(--text-muted)',
-              lineHeight: 1.6,
-              marginBottom: 24,
-            }}>
-              Mandamos um link para<br/>
-              <strong style={{ color: 'var(--white)' }}>{email}</strong><br/><br/>
-              Abre o email e clica no link para entrar no bolão!
-            </div>
-            <div style={{
-              padding: '12px 14px',
-              background: 'rgba(46,204,90,0.08)',
-              border: '1px solid rgba(46,204,90,0.2)',
-              borderRadius: 10,
-              fontSize: 13,
-              color: 'var(--text-muted)',
-              lineHeight: 1.5,
-              marginBottom: 20,
-            }}>
-              ⏱ O link expira em 1 hora. Não achou? Confere a caixa de spam.
-            </div>
-            <button
-              onClick={() => { setStep('email'); setEmail(''); }}
-              style={{
-                background: 'transparent',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 10,
-                padding: '10px 20px',
-                fontSize: 14,
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                fontFamily: 'Barlow,sans-serif',
-              }}
-            >
-              Usar outro email
+            <label style={{ fontFamily:'Barlow Condensed,sans-serif', fontSize:11, letterSpacing:2, textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:8 }}>
+              Código de 6 dígitos
+            </label>
+            <input
+              type="number"
+              value={otp}
+              onChange={e => { setOtp(e.target.value); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && handleVerifyOTP()}
+              placeholder="123456"
+              maxLength={8}
+              style={{ width:'100%', background:'var(--dark)', border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'14px 16px', fontSize:24, color:'var(--gold-light)', outline:'none', fontFamily:'Bebas Neue,sans-serif', letterSpacing:8, marginBottom:8, textAlign:'center' }}
+            />
+            {error && <div style={{ fontSize:13, color:'#e74c3c', marginBottom:12 }}>{error}</div>}
+            <button onClick={handleVerifyOTP} disabled={loading}
+              style={{ width:'100%', background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)', border:'none', borderRadius:12, padding:'14px', fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16, letterSpacing:2, textTransform:'uppercase', color:'var(--white)', cursor: loading ? 'not-allowed' : 'pointer', marginTop:8 }}>
+              {loading ? 'Verificando...' : 'Entrar no Bolão →'}
             </button>
-          </div>
+            <button onClick={() => { setStep('email'); setOtp(''); setError('') }}
+              style={{ width:'100%', background:'transparent', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'12px', fontFamily:'Barlow,sans-serif', fontSize:14, color:'var(--text-muted)', cursor:'pointer', marginTop:10 }}>
+              ← Usar outro email
+            </button>
+          </>
         )}
+
       </div>
 
-      <div style={{
-        marginTop: 32,
-        textAlign: 'center',
-        fontSize: 12,
-        color: 'rgba(122,158,126,0.5)',
-        fontFamily: 'Barlow Condensed,sans-serif',
-        letterSpacing: 1,
-      }}>
+      <div style={{ marginTop:32, textAlign:'center', fontSize:12, color:'rgba(122,158,126,0.5)', fontFamily:'Barlow Condensed,sans-serif', letterSpacing:1 }}>
         PRAÇA AMAMBAÍ F.C. · MEIER · 1993<br/>
         Desenvolvido por Marcus Paulo
       </div>
-
     </main>
   )
 }
