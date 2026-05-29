@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────
-// Amambaí F.C. — Worker de sincronização v2.0
-// POST /api/sync — chamado pelo Vercel Cron a cada 5min
+// Amambaí F.C. — Worker de sincronização v2.1
+// Fix: deriva loser dos placares em vez de normalized.winner
 // ─────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -50,12 +50,19 @@ export async function POST(req: NextRequest) {
         results.points_calculated++
 
         // ── 3. Mata-mata — marca seleção eliminada
+        // Deriva o perdedor a partir dos placares (FT = 90min)
         if (normalized.stage !== 'GROUP_STAGE') {
-          const loser = normalized.winner === 'home'
-            ? normalized.away_team
-            : normalized.winner === 'away'
-            ? normalized.home_team
-            : null // empate nos 90min não elimina ainda
+          const home = normalized.home_score
+          const away = normalized.away_score
+
+          const loser =
+            typeof home === 'number' && typeof away === 'number'
+              ? home > away
+                ? normalized.away_team   // casa venceu → visitante perdeu
+                : away > home
+                ? normalized.home_team   // visitante venceu → casa perdeu
+                : null                   // empate nos 90min → prorrogação decide depois
+              : null
 
           if (loser) {
             await supabase.rpc('eliminate_team', {
@@ -68,7 +75,6 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 4. Sincroniza gols dos artilheiros ────────
-    // Busca jogos finalizados das últimas 3h com gols pendentes
     const { data: recentMatches } = await supabase
       .from('matches')
       .select('id, external_id')
@@ -86,7 +92,6 @@ export async function POST(req: NextRequest) {
       ok: true,
       synced: results,
       timestamp: new Date().toISOString(),
-      note: 'Amambaí F.C. sync v2 — Bolão + Trader (Brasileirão) + Artilheiro',
     })
 
   } catch (err) {
@@ -96,5 +101,5 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ status: '⚽ Amambaí F.C. sync worker v2 online' })
+  return NextResponse.json({ status: '⚽ Amambaí F.C. sync worker v2.1 online' })
 }
