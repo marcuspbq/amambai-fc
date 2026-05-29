@@ -1,7 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
-const PUBLIC_ROUTES = ['/login', '/auth/callback']
+// Rotas públicas — sem necessidade de login
+const PUBLIC_ROUTES = [
+  '/login',
+  '/auth',        // cobre /auth/callback e qualquer subrota de auth
+]
 
 type CookieToSet = {
   name: string
@@ -12,6 +16,7 @@ type CookieToSet = {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Deixa rotas públicas passarem sem verificar sessão
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
     return NextResponse.next()
   }
