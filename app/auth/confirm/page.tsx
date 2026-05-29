@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function AuthConfirmPage() {
+function AuthConfirm() {
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -26,7 +26,6 @@ export default function AuthConfirmPage() {
         return
       }
 
-      // Cria perfil se não existir
       await supabase.from('users').upsert({
         id: data.user.id,
         email: data.user.email!,
@@ -34,7 +33,6 @@ export default function AuthConfirmPage() {
         avatar_emoji: '⭐',
       }, { onConflict: 'id' })
 
-      // Verifica se já tem nickname personalizado
       const { data: profile } = await supabase
         .from('users')
         .select('nickname')
@@ -42,7 +40,6 @@ export default function AuthConfirmPage() {
         .single()
 
       const isFirstAccess = profile?.nickname === data.user.email!.split('@')[0]
-
       router.push(isFirstAccess ? '/onboarding' : next)
     }
 
@@ -72,5 +69,23 @@ export default function AuthConfirmPage() {
         Aguarda um segundo!
       </div>
     </main>
+  )
+}
+
+export default function AuthConfirmPage() {
+  return (
+    <Suspense fallback={
+      <main style={{
+        minHeight: '100vh',
+        background: 'var(--dark)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <div style={{ fontSize: 48 }}>⚽</div>
+      </main>
+    }>
+      <AuthConfirm />
+    </Suspense>
   )
 }
