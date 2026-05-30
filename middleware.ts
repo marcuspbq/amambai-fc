@@ -2,6 +2,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'experimental-edge'
+
 // Rotas totalmente públicas (sem login)
 const PUBLIC_ROUTES = [
   '/',          // landing/home pública
