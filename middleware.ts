@@ -21,6 +21,7 @@ type CookieToSet = {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  console.log('[middleware] pathname:', pathname)
 
   // 1. Rotas públicas passam direto — sem tocar na sessão
   if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
