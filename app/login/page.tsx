@@ -41,12 +41,15 @@ function Escudo({ size = 80 }: { size?: number }) {
 type Step = 'email' | 'otp'
 
 export default function LoginPage() {
+  // Cria o cliente UMA vez fora dos handlers
   const supabase = createClient()
+  
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [debugMsg, setDebugMsg] = useState('')
 
   async function handleSendOTP() {
     if (!email || !email.includes('@')) {
@@ -55,6 +58,7 @@ export default function LoginPage() {
     }
     setLoading(true)
     setError('')
+    setDebugMsg('Enviando...')
 
     const { error: authError } = await supabase.auth.signInWithOtp({
       email,
@@ -64,10 +68,12 @@ export default function LoginPage() {
     setLoading(false)
 
     if (authError) {
-      setError('Erro ao enviar o código. Tente novamente.')
+      setError('Erro: ' + authError.message)
+      setDebugMsg('Erro ao enviar: ' + authError.message)
       return
     }
 
+    setDebugMsg('Código enviado!')
     setStep('otp')
   }
 
@@ -78,36 +84,29 @@ export default function LoginPage() {
     }
     setLoading(true)
     setError('')
+    setDebugMsg('Verificando código...')
 
-    // Tenta os dois tipos possíveis
-    let data = null
-    let verifyError = null
-
-    const res1 = await supabase.auth.verifyOtp({
+    const { data, error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token: otp.trim(),
-      type: 'magiclink',
+      type: 'email',
     })
 
-    if (res1.error) {
-      const res2 = await supabase.auth.verifyOtp({
-        email,
-        token: otp.trim(),
-        type: 'email',
-      })
-      data = res2.data
-      verifyError = res2.error
-    } else {
-      data = res1.data
-    }
+    setDebugMsg('Resultado: ' + JSON.stringify({ 
+      user: data?.user?.id ?? null, 
+      error: verifyError?.message ?? null,
+      code: verifyError?.status ?? null
+    }))
 
     if (verifyError || !data?.user) {
       setLoading(false)
-      setError('Código inválido ou expirado. Solicite um novo.')
+      setError('Erro: ' + (verifyError?.message ?? 'Sem usuário retornado'))
       return
     }
 
-    // Cria perfil se não existir
+    // Login bem sucedido — cria perfil e redireciona
+    setDebugMsg('Login OK! Criando perfil...')
+    
     const emailPrefix = email.split('@')[0]
     const { data: existingUser } = await supabase
       .from('users')
@@ -122,12 +121,29 @@ export default function LoginPage() {
         nickname: emailPrefix,
         avatar_emoji: '⭐',
       })
+      setDebugMsg('Perfil criado! Redirecionando...')
       window.location.href = '/onboarding'
       return
     }
 
     const isFirstAccess = existingUser.nickname === emailPrefix
+    setDebugMsg('Indo para: ' + (isFirstAccess ? '/onboarding' : '/'))
     window.location.href = isFirstAccess ? '/onboarding' : '/'
+  }
+
+  const inputStyle = {
+    width:'100%', background:'var(--dark)',
+    border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.12)',
+    borderRadius:12, padding:'14px 16px', fontSize:16,
+    color:'var(--white)', outline:'none', fontFamily:'Barlow,sans-serif',
+  }
+
+  const btnStyle = {
+    width:'100%', background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)',
+    border:'none', borderRadius:12, padding:'14px',
+    fontFamily:'Barlow Condensed,sans-serif', fontWeight:700 as const,
+    fontSize:16, letterSpacing:2, textTransform:'uppercase' as const,
+    color:'var(--white)', cursor: loading ? 'not-allowed' : 'pointer', marginTop:8,
   }
 
   return (
@@ -152,11 +168,11 @@ export default function LoginPage() {
               onChange={e => { setEmail(e.target.value); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleSendOTP()}
               placeholder="seu@email.com"
-              style={{ width:'100%', background:'var(--dark)', border: error ? '1px solid #e74c3c' : '1px solid rgba(255,255,255,0.12)', borderRadius:12, padding:'14px 16px', fontSize:16, color:'var(--white)', outline:'none', fontFamily:'Barlow,sans-serif', marginBottom:8 }}
+              style={{ ...inputStyle, marginBottom:8 }}
             />
             {error && <div style={{ fontSize:13, color:'#e74c3c', marginBottom:8 }}>{error}</div>}
-            <button onClick={handleSendOTP} disabled={loading}
-              style={{ width:'100%', background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)', border:'none', borderRadius:12, padding:'14px', fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16, letterSpacing:2, textTransform:'uppercase', color:'var(--white)', cursor: loading ? 'not-allowed' : 'pointer', marginTop:4 }}>
+            {debugMsg && <div style={{ fontSize:11, color:'#aaa', marginBottom:8, fontFamily:'monospace' }}>{debugMsg}</div>}
+            <button onClick={handleSendOTP} disabled={loading} style={btnStyle}>
               {loading ? 'Enviando...' : 'Receber Código ⚡'}
             </button>
           </>
@@ -166,32 +182,27 @@ export default function LoginPage() {
           <>
             <div style={{ fontFamily:'Bebas Neue,sans-serif', fontSize:24, letterSpacing:2, marginBottom:6 }}>Digite o Código</div>
             <div style={{ fontSize:14, color:'var(--text-muted)', marginBottom:24, lineHeight:1.5 }}>
-              Enviamos para <strong style={{ color:'var(--white)' }}>{email}</strong>.<br/>
-              O código aparece no email com 6 dígitos.
+              Enviamos para <strong style={{ color:'var(--white)' }}>{email}</strong>. Digite o código do email.
             </div>
             <label style={{ fontFamily:'Barlow Condensed,sans-serif', fontSize:11, letterSpacing:2, textTransform:'uppercase', color:'var(--text-muted)', display:'block', marginBottom:8 }}>Código de Acesso</label>
             <input
-              type="text"
-              inputMode="numeric"
-              value={otp}
+              type="text" inputMode="numeric" value={otp}
               onChange={e => { setOtp(e.target.value.replace(/\D/g,'')); setError('') }}
               onKeyDown={e => e.key === 'Enter' && handleVerifyOTP()}
-              placeholder="000000"
-              maxLength={8}
-              style={{ width:'100%', background:'var(--dark)', border: error ? '1px solid #e74c3c' : '1px solid rgba(200,146,42,0.4)', borderRadius:12, padding:'16px', fontSize:32, color:'var(--gold-light)', outline:'none', fontFamily:'Bebas Neue,sans-serif', letterSpacing:12, marginBottom:8, textAlign:'center' }}
+              placeholder="00000000" maxLength={8}
+              style={{ ...inputStyle, fontSize:32, color:'var(--gold-light)', fontFamily:'Bebas Neue,sans-serif', letterSpacing:12, textAlign:'center', marginBottom:8 }}
             />
             {error && <div style={{ fontSize:13, color:'#e74c3c', marginBottom:8 }}>{error}</div>}
-            <button onClick={handleVerifyOTP} disabled={loading}
-              style={{ width:'100%', background: loading ? 'rgba(26,122,46,0.5)' : 'var(--green)', border:'none', borderRadius:12, padding:'14px', fontFamily:'Barlow Condensed,sans-serif', fontWeight:700, fontSize:16, letterSpacing:2, textTransform:'uppercase', color:'var(--white)', cursor: loading ? 'not-allowed' : 'pointer', marginTop:4 }}>
+            {debugMsg && <div style={{ fontSize:11, color:'#aaa', marginBottom:8, fontFamily:'monospace', wordBreak:'break-all' }}>{debugMsg}</div>}
+            <button onClick={handleVerifyOTP} disabled={loading} style={btnStyle}>
               {loading ? 'Verificando...' : 'Entrar no Bolão →'}
             </button>
-            <button onClick={() => { setStep('email'); setOtp(''); setError('') }}
+            <button onClick={() => { setStep('email'); setOtp(''); setError(''); setDebugMsg('') }}
               style={{ width:'100%', background:'transparent', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'12px', fontFamily:'Barlow,sans-serif', fontSize:14, color:'var(--text-muted)', cursor:'pointer', marginTop:10 }}>
               ← Usar outro email
             </button>
           </>
         )}
-
       </div>
 
       <div style={{ marginTop:32, textAlign:'center', fontSize:12, color:'rgba(122,158,126,0.5)', fontFamily:'Barlow Condensed,sans-serif', letterSpacing:1 }}>
