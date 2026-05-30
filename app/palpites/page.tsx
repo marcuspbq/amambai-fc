@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRequireAuth } from '@/lib/useRequireAuth'
 
 const JOGOS = [
   { id: 1, fase: 'Fase de Grupos · Grupo A', time: '✅ Salvo', homef: '🇩🇪', home: 'Alemanha', awayf: '🇯🇵', away: 'Japão', done: true, hp: 2, ap: 1 },
@@ -74,6 +75,9 @@ function MatchCard({ jogo }: { jogo: typeof JOGOS[0] }) {
 }
 
 export default function PalpitesPage() {
+  const { loading } = useRequireAuth()
+  if (loading) return null
+
   return (
     <main style={{ minHeight:'100vh', background:'var(--dark)', paddingBottom: 90 }}>
       <header className="app-header">
